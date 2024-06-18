@@ -30,65 +30,64 @@ _add_path(_parent)
 from charmhelpers.core import hookenv, host  # noqa: E402
 from charmhelpers import fetch  # noqa: E402
 
-PACKAGES = ['lldpd']
+PACKAGES = ["lldpd"]
 
 hooks = hookenv.Hooks()
 
 
-@hooks.hook('install')
+@hooks.hook("install")
 def install():
-    hookenv.status_set('maintenance', 'Installing LLDP daemon')
+    hookenv.status_set("maintenance", "Installing LLDP daemon")
     fetch.apt_update()
     fetch.apt_install(PACKAGES, fatal=False)
-    hookenv.status_set('maintenance', 'LLDP daemon installed')
+    hookenv.status_set("maintenance", "LLDP daemon installed")
 
 
 @hooks.hook("config-changed")
 def config_changed():
-    hookenv.status_set('maintenance', 'Configuring LLDP daemon')
+    hookenv.status_set("maintenance", "Configuring LLDP daemon")
     configs = hookenv.config()
-    if 'i40e-lldp-stop' in configs:
+    if "i40e-lldp-stop" in configs:
         disable_i40e_lldp()
     lldpdconf = "/etc/default/lldpd"
-    conf = open(lldpdconf, 'w')
-    args = ['DAEMON_ARGS=\"']
-    if 'systemid-from-interface' in configs:
-        args.append('-C %s ' % str(configs['systemid-from-interface']))
-    if 'interfaces-regex' in configs:
-        args.append('-I %s ' % str(configs['interfaces-regex']))
-    if configs['enable-snmp']:
-        args.append('-x ')
-    if configs['short-name']:
+    args = ['DAEMON_ARGS="']
+    if "systemid-from-interface" in configs:
+        args.append("-C %s " % str(configs["systemid-from-interface"]))
+    if "interfaces-regex" in configs:
+        args.append("-I %s " % str(configs["interfaces-regex"]))
+    if configs["enable-snmp"]:
+        args.append("-x ")
+    if configs["short-name"]:
         short_name()
-    machine_id = os.environ['JUJU_MACHINE_ID']
+    machine_id = os.environ["JUJU_MACHINE_ID"]
     if machine_id:
-        args.append('-S juju_machine_id=%s' % str(machine_id))
-    args.append('\"\n')
-    conf.write(''.join(args))
-    conf.close()
-    host.service_restart('lldpd')
-    hookenv.status_set('active', 'LLDP daemon running')
+        args.append("-S juju_machine_id=%s" % str(machine_id))
+    args.append('"\n')
+
+    with open(lldpdconf, "w") as conf:
+        conf.write("".join(args))
+
+    host.service_restart("lldpd")
+    hookenv.status_set("active", "LLDP daemon running")
 
 
 def disable_i40e_lldp():
-    path = '/sys/kernel/debug/i40e'
+    path = "/sys/kernel/debug/i40e"
     if not os.path.exists(path):
         return True
     for nic in os.listdir(path):
-        cmd = open('%s/%s/command' % (str(path), str(nic)), 'w')
-        cmd.write('lldp stop')
-        cmd.close()
+        with open("%s/%s/command" % (str(path), str(nic)), "w") as f:
+            f.write("lldp stop")
 
 
 def short_name():
-    path = '/etc/lldpd.conf'
+    path = "/etc/lldpd.conf"
     shortname = os.uname()[1]
-    cmd = open('%s' % (str(path)), 'w')
-    cmd.write('configure system hostname %s\n' % str(shortname))
-    cmd.close()
+    with open("%s" % (str(path)), "w") as f:
+        f.write("configure system hostname %s\n" % str(shortname))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         hooks.execute(sys.argv)
     except hookenv.UnregisteredHookError:
